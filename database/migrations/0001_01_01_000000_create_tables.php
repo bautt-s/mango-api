@@ -117,29 +117,6 @@ return new class extends Migration {
             $table->index(['feature_id','period_ym']);
         });
 
-        Schema::create('categories', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete(); // null => system
-            $table->string('name');
-            $table->enum('kind', ['expense', 'income', 'both'])->default('expense');
-            $table->string('color', 9)->nullable();   // #RRGGBB
-            $table->string('icon')->nullable();
-            $table->boolean('is_system')->default(false);
-            $table->foreignId('parent_id')->nullable()->constrained('categories')->cascadeOnDelete();
-
-            // preferred account when user picks this category (optional)
-            $table->foreignId('default_account_id')
-                ->nullable()
-                ->constrained('accounts')
-                ->nullOnDelete();
-
-            $table->timestamps();
-
-            $table->unique(['user_id', 'name', 'kind']);
-            $table->index(['is_system', 'kind']);
-            $table->index(['default_account_id']); // helpful for lookups
-        });
-
         // ---- Payment methods ----
         Schema::create('payment_methods', function (Blueprint $table) {
             $table->id();
@@ -171,6 +148,27 @@ return new class extends Migration {
 
             $table->unique(['user_id','label']);
             $table->index(['user_id','archived','is_default']);
+        });
+
+        // ---- Categories (create WITHOUT foreign key first) ----
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete(); // null => system
+            $table->string('name');
+            $table->enum('kind', ['expense', 'income', 'both'])->default('expense');
+            $table->string('color', 9)->nullable();   // #RRGGBB
+            $table->string('icon')->nullable();
+            $table->boolean('is_system')->default(false);
+            $table->foreignId('parent_id')->nullable()->constrained('categories')->cascadeOnDelete();
+
+            // Add default_account_id column but WITHOUT foreign key constraint yet
+            $table->unsignedBigInteger('default_account_id')->nullable();
+
+            $table->timestamps();
+
+            $table->unique(['user_id', 'name', 'kind']);
+            $table->index(['is_system', 'kind']);
+            $table->index(['default_account_id']); // helpful for lookups
         });
 
         // ---- Exchange rates (future) ----
@@ -223,6 +221,14 @@ return new class extends Migration {
             $table->index(['payment_method_id']);
             $table->index(['account_id']);
             $table->index(['source_account_id','target_account_id']);
+        });
+
+        // NOW add the foreign key constraint for categories.default_account_id
+        Schema::table('categories', function (Blueprint $table) {
+            $table->foreign('default_account_id')
+                ->references('id')
+                ->on('accounts')
+                ->nullOnDelete();
         });
 
         // (Optional) lightweight CHECKs for MySQL 8+ (ignored on older versions)
@@ -339,12 +345,13 @@ return new class extends Migration {
         Schema::dropIfExists('milestones');
         Schema::dropIfExists('budgets');
         Schema::dropIfExists('daily_summaries');
-        Schema::dropIfExists('whatsapp_messages');
+        Schema::dropIfExists('whatsapp_messages');     
+        Schema::dropIfExists('categories');
         Schema::dropIfExists('transactions');
         Schema::dropIfExists('exchange_rates');
+        Schema::dropIfExists('categories');
         Schema::dropIfExists('accounts');
         Schema::dropIfExists('payment_methods');
-        Schema::dropIfExists('categories');
         Schema::dropIfExists('feature_usage');
         Schema::dropIfExists('plan_features');
         Schema::dropIfExists('features');
