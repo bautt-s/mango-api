@@ -2,23 +2,26 @@
 
 namespace App\Models\System;
 
+use App\Casts\EncryptedText;
 use App\Models\Configurations\Transaction;
 use App\Models\Personal\User;
+use App\Support\BlindIndex;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class WhatsappMessage extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'user_id',
         'wa_message_id',
-        'phone',
         'direction',
         'status',
         'message_type',
-        'body',
+        'body_enc', 
+        'body_bi',
         'raw_payload',
         'parsed_json',
         'parse_status',
@@ -32,6 +35,7 @@ class WhatsappMessage extends Model
         'parsed_json' => 'array',
         'received_at' => 'datetime',
         'sent_at' => 'datetime',
+        'body_enc' => EncryptedText::class, 
     ];
 
     // Relationships
@@ -45,6 +49,15 @@ class WhatsappMessage extends Model
         return $this->belongsTo(Transaction::class, 'related_transaction_id');
     }
 
+    // Accessor for encrypted body
+    public function getBodyAttribute()
+    {
+        return $this->body_enc;
+    }
+
+    // Convenience accessors
+    public function setBodyAttribute($v){ $this->attributes['body_enc'] = $v; }
+    
     // Scopes
     public function scopeInbound($query)
     {
@@ -95,6 +108,12 @@ class WhatsappMessage extends Model
     {
         return $query->whereNull('parse_status')
             ->orWhere('parse_status', 'skipped');
+    }
+
+    public function scopeSearchBody($query, string $searchTerm)
+    {
+        $bi = BlindIndex::hash($searchTerm);
+        return $query->where('body_bi', $bi);
     }
 
     // Helper methods

@@ -3,30 +3,25 @@
 namespace App\Models\Configurations;
 
 use App\Models\Personal\User;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Budget extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
+        'name',
         'user_id',
         'category_id',
-        'name',
-        'period',
-        'period_start_date',
-        'period_end_date',
-        'amount_cents',
+        'limit_cents', 
         'currency_code',
-        'active',
+        'period',
     ];
 
     protected $casts = [
-        'period_start_date' => 'date',
-        'period_end_date' => 'date',
-        'amount_cents' => 'integer',
-        'active' => 'boolean',
+        'limit_cents' => 'integer',
     ];
 
     // Relationships
@@ -41,14 +36,14 @@ class Budget extends Model
     }
 
     // Scopes
-    public function scopeActive($query)
+    public function scopeMonthly($query)
     {
-        return $query->where('active', true);
+        return $query->where('period', 'monthly');
     }
 
-    public function scopeInactive($query)
+    public function scopeYearly($query)
     {
-        return $query->where('active', false);
+        return $query->where('period', 'yearly');
     }
 
     public function scopeGlobal($query)
@@ -61,56 +56,31 @@ class Budget extends Model
         return $query->where('category_id', $categoryId);
     }
 
-    public function scopeCurrent($query)
-    {
-        $now = now();
-        return $query->where('period_start_date', '<=', $now)
-            ->where('period_end_date', '>=', $now);
-    }
-
-    public function scopeInPeriod($query, $startDate, $endDate)
-    {
-        return $query->where(function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('period_start_date', [$startDate, $endDate])
-                ->orWhereBetween('period_end_date', [$startDate, $endDate])
-                ->orWhere(function ($q2) use ($startDate, $endDate) {
-                    $q2->where('period_start_date', '<=', $startDate)
-                        ->where('period_end_date', '>=', $endDate);
-                });
-        });
-    }
-
     // Accessors
-    public function getAmountAttribute(): float
+    public function getLimitAttribute(): float
     {
-        return $this->amount_cents / 100;
+        return $this->limit_cents / 100;
     }
 
     // Helper methods
-    public function isActive(): bool
-    {
-        return $this->active;
-    }
-
     public function isGlobal(): bool
     {
         return $this->category_id === null;
     }
 
-    public function isCurrent(): bool
-    {
-        $now = now();
-        return $this->period_start_date <= $now && $this->period_end_date >= $now;
-    }
-
     public function getSpentAmount(): int
     {
+        $startDate = $this->period === 'monthly'
+            ? now()->startOfMonth()
+            : now()->startOfYear();
+
+        $endDate = $this->period === 'monthly'
+            ? now()->endOfMonth()
+            : now()->endOfYear();
+
         $query = Transaction::where('user_id', $this->user_id)
             ->where('type', 'expense')
-            ->whereBetween('occurred_at', [
-                $this->period_start_date->startOfDay(),
-                $this->period_end_date->endOfDay()
-            ]);
+            ->whereBetween('occurred_at', [$startDate, $endDate]);
 
         if (!$this->isGlobal()) {
             $query->where('category_id', $this->category_id);
@@ -121,20 +91,20 @@ class Budget extends Model
 
     public function getRemainingAmount(): int
     {
-        return max(0, $this->amount_cents - $this->getSpentAmount());
+        return max(0, $this->limit_cents - $this->getSpentAmount());
     }
 
     public function getPercentageUsed(): float
     {
-        if ($this->amount_cents == 0) {
+        if ($this->limit_cents == 0) {
             return 0;
         }
 
-        return min(100, ($this->getSpentAmount() / $this->amount_cents) * 100);
+        return min(100, ($this->getSpentAmount() / $this->limit_cents) * 100);
     }
 
     public function isOverBudget(): bool
     {
-        return $this->getSpentAmount() > $this->amount_cents;
+        return $this->getSpentAmount() > $this->limit_cents;
     }
 }

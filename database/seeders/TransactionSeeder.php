@@ -37,49 +37,70 @@ class TransactionSeeder extends Seeder
                     $transactionType = $this->randomTransactionType();
                     
                     if ($transactionType === 'expense') {
-                        Transaction::create([
+                        $transaction = new Transaction([
                             'user_id' => $user->id,
                             'type' => 'expense',
-                            'amount_cents' => rand(500, 50000), // 5 to 500 in currency units
+                            'amount_cents' => rand(500, 50000),
                             'currency_code' => $user->currency_code,
                             'occurred_at' => $date->copy()->setTime(rand(8, 22), rand(0, 59)),
-                            'description' => $this->getExpenseDescription(),
-                            'merchant' => $this->getMerchant(),
                             'account_id' => $defaultAccount->id,
                             'category_id' => $expenseCategories->random()->id,
                             'payment_method_id' => $paymentMethods->random()->id,
-                            'is_recurring' => rand(0, 10) > 8, // 20% chance
-                            'tags' => $this->getRandomTags(),
+                            'is_recurring' => rand(0, 10) > 8,
                         ]);
+                        
+                        // Set encrypted fields - fix here
+                        $transaction->description = $this->getExpenseDescription();
+                        $transaction->merchant = $this->getMerchant();
+                        
+                        // FIX: Only set tags if they exist
+                        $tags = $this->getRandomTags();
+                        if ($tags !== null) {
+                            $transaction->tags = $tags;
+                        }
+                        
+                        $transaction->save();
                     } elseif ($transactionType === 'income') {
-                        Transaction::create([
+                        $transaction = new Transaction([
                             'user_id' => $user->id,
                             'type' => 'income',
-                            'amount_cents' => rand(10000, 500000), // Larger amounts for income
+                            'amount_cents' => rand(10000, 500000),
                             'currency_code' => $user->currency_code,
                             'occurred_at' => $date->copy()->setTime(rand(8, 18), rand(0, 59)),
-                            'description' => $this->getIncomeDescription(),
                             'account_id' => $defaultAccount->id,
                             'category_id' => $incomeCategories->random()->id,
                             'payment_method_id' => null,
-                            'tags' => $this->getRandomTags(),
                         ]);
+                        
+                        // Set encrypted fields - fix here
+                        $transaction->description = $this->getIncomeDescription();
+                        
+                        // FIX: Only set tags if they exist
+                        $tags = $this->getRandomTags();
+                        if ($tags !== null) {
+                            $transaction->tags = $tags;
+                        }
+                        
+                        $transaction->save();
                     } else {
                         // Transfer
                         if ($accounts->count() >= 2) {
                             $sourceAccount = $accounts->random();
                             $targetAccount = $accounts->where('id', '!=', $sourceAccount->id)->random();
                             
-                            Transaction::create([
+                            $transaction = new Transaction([
                                 'user_id' => $user->id,
                                 'type' => 'transfer',
                                 'amount_cents' => rand(5000, 100000),
                                 'currency_code' => $user->currency_code,
                                 'occurred_at' => $date->copy()->setTime(rand(8, 22), rand(0, 59)),
-                                'description' => 'Transfer between accounts',
                                 'source_account_id' => $sourceAccount->id,
                                 'target_account_id' => $targetAccount->id,
                             ]);
+                            
+                            $transaction->description = 'Transfer between accounts';
+                            
+                            $transaction->save();
                         }
                     }
                 }
@@ -95,11 +116,11 @@ class TransactionSeeder extends Seeder
         $rand = rand(1, 100);
         
         if ($rand <= 70) {
-            return 'expense'; // 70%
+            return 'expense';
         } elseif ($rand <= 85) {
-            return 'income'; // 15%
+            return 'income';
         } else {
-            return 'transfer'; // 15%
+            return 'transfer';
         }
     }
 
@@ -159,7 +180,7 @@ class TransactionSeeder extends Seeder
             'Disco',
             'Shell',
             'Amazon',
-            null, // Some transactions don't have merchant
+            null,
         ];
 
         return $merchants[array_rand($merchants)];
@@ -167,7 +188,7 @@ class TransactionSeeder extends Seeder
 
     private function getRandomTags(): ?array
     {
-        if (rand(0, 10) > 7) { // 30% chance of having tags
+        if (rand(0, 10) > 7) {
             $allTags = ['work', 'personal', 'urgent', 'recurring', 'travel', 'health', 'family'];
             $numTags = rand(1, 3);
             $selectedTags = array_rand(array_flip($allTags), $numTags);
@@ -191,20 +212,23 @@ class TransactionSeeder extends Seeder
 
         foreach ($recurringExpenses as $expense) {
             for ($month = 0; $month < 3; $month++) {
-                Transaction::create([
+                $transaction = new Transaction([
                     'user_id' => $user->id,
                     'type' => 'expense',
                     'amount_cents' => $expense['amount_cents'],
                     'currency_code' => $user->currency_code,
                     'occurred_at' => now()->subMonths($month)->day($expense['day'])->setTime(10, 0),
-                    'description' => $expense['description'],
                     'account_id' => $account->id,
                     'category_id' => $categories->random()->id,
                     'payment_method_id' => $paymentMethods->random()->id,
                     'is_recurring' => true,
                     'recurrence_group_id' => $recurrenceGroupId,
-                    'tags' => ['recurring'],
                 ]);
+                
+                $transaction->description = $expense['description'];
+                $transaction->tags = ['recurring']; // This is an array, which is correct
+                
+                $transaction->save();
             }
         }
     }

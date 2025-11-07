@@ -2,15 +2,19 @@
 
 namespace App\Models\Configurations;
 
-use App\Models\ExchangeRate\WhatsappMessage;
+use App\Casts\EncryptedJson;
+use App\Casts\EncryptedText;
 use App\Models\Personal\User;
+use App\Models\System\WhatsappMessage;
+use App\Support\BlindIndex;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Transaction extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasUuids;
 
     protected $fillable = [
         'user_id',
@@ -18,9 +22,7 @@ class Transaction extends Model
         'amount_cents',
         'currency_code',
         'occurred_at',
-        'description',
-        'merchant',
-        'notes',
+        // REMOVED: 'description', 'merchant', 'notes', 'tags' - these should use mutators only
         'account_id',
         'source_account_id',
         'target_account_id',
@@ -28,14 +30,16 @@ class Transaction extends Model
         'payment_method_id',
         'is_recurring',
         'recurrence_group_id',
-        'tags',
     ];
 
     protected $casts = [
         'amount_cents' => 'integer',
         'occurred_at' => 'datetime',
         'is_recurring' => 'boolean',
-        'tags' => 'array',
+        'description_enc' => EncryptedText::class,
+        'merchant_enc'    => EncryptedText::class,
+        'notes_enc'       => EncryptedText::class,
+        'tags_enc'        => EncryptedJson::class,
     ];
 
     // Relationships
@@ -72,6 +76,48 @@ class Transaction extends Model
     public function whatsappMessage()
     {
         return $this->hasOne(WhatsappMessage::class, 'related_transaction_id');
+    }
+
+    // Custom accessors/mutators for encrypted fields
+    public function setDescriptionAttribute($value)
+    {
+        // Use setAttribute to trigger the cast
+        $this->setAttribute('description_enc', $value);
+    }
+    
+    public function getDescriptionAttribute()
+    {
+        return $this->getAttribute('description_enc');
+    }
+
+    public function setMerchantAttribute($value)
+    {
+        $this->setAttribute('merchant_enc', $value);
+    }
+    
+    public function getMerchantAttribute()
+    {
+        return $this->getAttribute('merchant_enc');
+    }
+
+    public function setNotesAttribute($value)
+    {
+        $this->setAttribute('notes_enc', $value);
+    }
+    
+    public function getNotesAttribute()
+    {
+        return $this->getAttribute('notes_enc');
+    }
+
+    public function setTagsAttribute($value)
+    {
+        $this->setAttribute('tags_enc', $value);
+    }
+    
+    public function getTagsAttribute()
+    {
+        return $this->getAttribute('tags_enc');
     }
 
     // Scopes
@@ -113,7 +159,7 @@ class Transaction extends Model
 
     public function scopeWithTag($query, string $tag)
     {
-        return $query->whereJsonContains('tags', $tag);
+        return $query->whereJsonContains('tags_enc', $tag);
     }
 
     public function scopeForAccount($query, int $accountId)
@@ -161,7 +207,8 @@ class Transaction extends Model
 
     public function hasTag(string $tag): bool
     {
-        return $this->tags && in_array($tag, $this->tags);
+        $tags = $this->tags;
+        return $tags && is_array($tags) && in_array($tag, $tags);
     }
 
     public function addTag(string $tag): bool
@@ -187,5 +234,15 @@ class Transaction extends Model
         $this->tags = array_values(array_filter($tags, fn($t) => $t !== $tag));
 
         return $this->save();
+    }
+
+    protected static function booted()
+    {
+        static::saving(function ($m) {
+            // Hash the description for blind index searching
+            // Access via getAttribute to get the decrypted value
+            $desc = $m->getAttribute('description_enc');
+            $m->description_bi = BlindIndex::hash($desc);
+        });
     }
 }

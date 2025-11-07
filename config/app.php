@@ -123,4 +123,8 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'master_key' => env('APP_MASTER_KEY'),
+    'current_key_version' => (int) env('CURRENT_KEY_VERSION', 1),
+    'enc_cipher' => env('APP_ENC_CIPHER', 'xchacha20'),
+    'bi_key' => env('APP_BI_KEY'),
 ];

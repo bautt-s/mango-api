@@ -90,7 +90,7 @@ class MilestoneSeeder extends Seeder
                     'code' => $milestone['code'],
                     'title' => $milestone['title'],
                     'description' => $milestone['description'],
-                    'achieved_at' => $achieved ? now()->subDays(rand(1, 60)) : null,
+                    'reached_at' => $achieved ? now()->subDays(rand(1, 60)) : null,
                 ]);
             }
         }

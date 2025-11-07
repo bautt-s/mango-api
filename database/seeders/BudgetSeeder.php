@@ -22,11 +22,8 @@ class BudgetSeeder extends Seeder
                 'category_id' => null,
                 'name' => 'Monthly Budget',
                 'period' => 'monthly',
-                'period_start_date' => now()->startOfMonth(),
-                'period_end_date' => now()->endOfMonth(),
-                'amount_cents' => 500000, // 5000 currency units
+                'limit_cents' => 500000, // 5000 currency units
                 'currency_code' => $user->currency_code,
-                'active' => true,
             ]);
 
             // Category-specific budgets
@@ -38,26 +35,10 @@ class BudgetSeeder extends Seeder
                     'category_id' => $category->id,
                     'name' => $category->name . ' Budget',
                     'period' => 'monthly',
-                    'period_start_date' => now()->startOfMonth(),
-                    'period_end_date' => now()->endOfMonth(),
-                    'amount_cents' => $amounts[$index] ?? 30000,
+                    'limit_cents' => $amounts[$index] ?? 30000,
                     'currency_code' => $user->currency_code,
-                    'active' => true,
                 ]);
             }
-
-            // Weekly budget
-            Budget::create([
-                'user_id' => $user->id,
-                'category_id' => null,
-                'name' => 'Weekly Spending',
-                'period' => 'weekly',
-                'period_start_date' => now()->startOfWeek(),
-                'period_end_date' => now()->endOfWeek(),
-                'amount_cents' => 100000,
-                'currency_code' => $user->currency_code,
-                'active' => true,
-            ]);
 
             // Yearly budget
             Budget::create([
@@ -65,11 +46,8 @@ class BudgetSeeder extends Seeder
                 'category_id' => null,
                 'name' => 'Annual Budget',
                 'period' => 'yearly',
-                'period_start_date' => now()->startOfYear(),
-                'period_end_date' => now()->endOfYear(),
-                'amount_cents' => 5000000,
+                'limit_cents' => 5000000,
                 'currency_code' => $user->currency_code,
-                'active' => true,
             ]);
 
             // Previous month budget (for historical data)
@@ -78,11 +56,8 @@ class BudgetSeeder extends Seeder
                 'category_id' => null,
                 'name' => 'Last Month Budget',
                 'period' => 'monthly',
-                'period_start_date' => now()->subMonth()->startOfMonth(),
-                'period_end_date' => now()->subMonth()->endOfMonth(),
-                'amount_cents' => 480000,
+                'limit_cents' => 480000,
                 'currency_code' => $user->currency_code,
-                'active' => false,
             ]);
         }
     }

@@ -13,16 +13,16 @@ class ExchangeRateSeeder extends Seeder
         
         $rates = [
             // USD to other currencies
-            ['base_code' => 'USD', 'quote_code' => 'ARS', 'rate' => 1050.00, 'as_of_date' => $today],
-            ['base_code' => 'USD', 'quote_code' => 'EUR', 'rate' => 0.92, 'as_of_date' => $today],
+            ['base_currency' => 'USD', 'target_currency' => 'ARS', 'rate' => 1050.00, 'rate_date' => $today],
+            ['base_currency' => 'USD', 'target_currency' => 'EUR', 'rate' => 0.92, 'rate_date' => $today],
             
             // EUR to other currencies
-            ['base_code' => 'EUR', 'quote_code' => 'USD', 'rate' => 1.09, 'as_of_date' => $today],
-            ['base_code' => 'EUR', 'quote_code' => 'ARS', 'rate' => 1144.50, 'as_of_date' => $today],
+            ['base_currency' => 'EUR', 'target_currency' => 'USD', 'rate' => 1.09, 'rate_date' => $today],
+            ['base_currency' => 'EUR', 'target_currency' => 'ARS', 'rate' => 1144.50, 'rate_date' => $today],
             
             // ARS to other currencies
-            ['base_code' => 'ARS', 'quote_code' => 'USD', 'rate' => 0.00095, 'as_of_date' => $today],
-            ['base_code' => 'ARS', 'quote_code' => 'EUR', 'rate' => 0.00087, 'as_of_date' => $today],
+            ['base_currency' => 'ARS', 'target_currency' => 'USD', 'rate' => 0.00095, 'rate_date' => $today],
+            ['base_currency' => 'ARS', 'target_currency' => 'EUR', 'rate' => 0.00087, 'rate_date' => $today],
         ];
 
         foreach ($rates as $rate) {
@@ -35,17 +35,17 @@ class ExchangeRateSeeder extends Seeder
             $variation = 1 + (rand(-5, 5) / 100); // ±5% variation
             
             ExchangeRate::create([
-                'base_code' => 'USD',
-                'quote_code' => 'ARS',
+                'base_currency' => 'USD',
+                'target_currency' => 'ARS',
                 'rate' => round(1050.00 * $variation, 2),
-                'as_of_date' => $date,
+                'rate_date' => $date,
             ]);
             
             ExchangeRate::create([
-                'base_code' => 'USD',
-                'quote_code' => 'EUR',
+                'base_currency' => 'USD',
+                'target_currency' => 'EUR',
                 'rate' => round(0.92 * $variation, 8),
-                'as_of_date' => $date,
+                'rate_date' => $date,
             ]);
         }
     }

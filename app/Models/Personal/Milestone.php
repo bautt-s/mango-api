@@ -2,23 +2,24 @@
 
 namespace App\Models\Personal;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Milestone extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'user_id',
-        'code',
+        'code', 
         'title',
         'description',
-        'achieved_at',
+        'reached_at',
     ];
 
     protected $casts = [
-        'achieved_at' => 'datetime',
+        'reached_at' => 'datetime', 
     ];
 
     // Relationships
@@ -30,24 +31,24 @@ class Milestone extends Model
     // Scopes
     public function scopeAchieved($query)
     {
-        return $query->whereNotNull('achieved_at');
+        return $query->whereNotNull('reached_at');
     }
 
     public function scopeNotAchieved($query)
     {
-        return $query->whereNull('achieved_at');
+        return $query->whereNull('reached_at');
     }
 
     public function scopeRecentlyAchieved($query, int $days = 7)
     {
-        return $query->whereNotNull('achieved_at')
-            ->where('achieved_at', '>=', now()->subDays($days));
+        return $query->whereNotNull('reached_at')
+            ->where('reached_at', '>=', now()->subDays($days));
     }
 
     // Helper methods
     public function isAchieved(): bool
     {
-        return $this->achieved_at !== null;
+        return $this->reached_at !== null;
     }
 
     public function achieve(): bool
@@ -56,13 +57,13 @@ class Milestone extends Model
             return false;
         }
 
-        $this->achieved_at = now();
+        $this->reached_at = now();
         return $this->save();
     }
 
     public function reset(): bool
     {
-        $this->achieved_at = null;
+        $this->reached_at = null;
         return $this->save();
     }
 }

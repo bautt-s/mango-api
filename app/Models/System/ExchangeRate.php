@@ -10,33 +10,45 @@ class ExchangeRate extends Model
     use HasFactory;
 
     protected $fillable = [
-        'base_code',
-        'quote_code',
-        'rate',
-        'as_of_date',
+        'rate_date',
+        'base_currency',
+        'target_currency', 
+        'rate_ppm',
     ];
 
     protected $casts = [
-        'rate' => 'decimal:8',
-        'as_of_date' => 'date',
+        'rate_ppm' => 'integer',
+        'rate_date' => 'date',
     ];
 
     // Scopes
-    public function scopeForPair($query, string $baseCode, string $quoteCode)
+    public function scopeForPair($query, string $baseCurrency, string $targetCurrency)
     {
-        return $query->where('base_code', $baseCode)
-            ->where('quote_code', $quoteCode);
+        return $query->where('base_currency', $baseCurrency)
+            ->where('target_currency', $targetCurrency);
     }
 
     public function scopeLatest($query)
     {
-        return $query->orderBy('as_of_date', 'desc');
+        return $query->orderBy('rate_date', 'desc');
     }
 
     public function scopeAsOfDate($query, $date)
     {
-        return $query->where('as_of_date', '<=', $date)
-            ->orderBy('as_of_date', 'desc');
+        return $query->where('rate_date', '<=', $date)
+            ->orderBy('rate_date', 'desc');
+    }
+
+    // Accessor to convert rate_ppm to decimal
+    public function getRateAttribute(): float
+    {
+        return $this->rate_ppm / 1000000;
+    }
+
+    // Mutator to store rate as ppm
+    public function setRateAttribute($value)
+    {
+        $this->attributes['rate_ppm'] = (int) round($value * 1000000);
     }
 
     // Helper methods
@@ -54,18 +66,18 @@ class ExchangeRate extends Model
             $query->latest();
         }
 
-        $rate = $query->first();
+        $exchangeRate = $query->first();
 
-        if (!$rate) {
+        if (!$exchangeRate) {
             return null;
         }
 
-        return (int) round($amountCents * (float) $rate->rate);
+        return (int) round($amountCents * $exchangeRate->rate);
     }
 
-    public static function getRate(string $baseCode, string $quoteCode, $date = null): ?float
+    public static function getRate(string $baseCurrency, string $targetCurrency, $date = null): ?float
     {
-        $query = static::forPair($baseCode, $quoteCode);
+        $query = static::forPair($baseCurrency, $targetCurrency);
 
         if ($date) {
             $query->asOfDate($date);
@@ -73,8 +85,8 @@ class ExchangeRate extends Model
             $query->latest();
         }
 
-        $rate = $query->first();
+        $exchangeRate = $query->first();
 
-        return $rate ? (float) $rate->rate : null;
+        return $exchangeRate ? $exchangeRate->rate : null;
     }
 }

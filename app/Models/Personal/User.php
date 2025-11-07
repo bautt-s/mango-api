@@ -8,9 +8,10 @@ use App\Models\Configurations\Category;
 use App\Models\Configurations\DailySummary;
 use App\Models\Configurations\PaymentMethod;
 use App\Models\Configurations\Transaction;
-use App\Models\ExchangeRate\WhatsappMessage;
 use App\Models\Features\FeatureUsage;
 use App\Models\Subscriptions\Subscription;
+use App\Models\System\WhatsappMessage;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -18,7 +19,7 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes, HasUuids;
 
     protected $fillable = [
         'name',

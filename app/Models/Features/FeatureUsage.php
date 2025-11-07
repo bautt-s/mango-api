@@ -3,12 +3,13 @@
 namespace App\Models\Features;
 
 use App\Models\Personal\User;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class FeatureUsage extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $table = 'feature_usage';
 
