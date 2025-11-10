@@ -13,12 +13,32 @@ return new class extends Migration
     {
         Schema::create('personal_access_tokens', function (Blueprint $table) {
             $table->id();
-            $table->morphs('tokenable');
-            $table->text('name');
+            $table->uuid('tokenable_id');
+            $table->string('tokenable_type');
+            $table->string('name');
             $table->string('token', 64)->unique();
             $table->text('abilities')->nullable();
             $table->timestamp('last_used_at')->nullable();
-            $table->timestamp('expires_at')->nullable()->index();
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamps();
+
+            // Index the morph relationship columns
+            $table->index(['tokenable_id', 'tokenable_type']);
+        });
+
+        Schema::create('password_reset_codes', function (Blueprint $table) {
+            $table->id();
+            $table->string('email')->index();
+            $table->string('code');
+            $table->timestamp('created_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
+        });
+
+        Schema::create('email_verification_codes', function (Blueprint $table) {
+            $table->id();
+            $table->string('email');
+            $table->string('code', 6);
+            $table->timestamp('expires_at');
             $table->timestamps();
         });
     }

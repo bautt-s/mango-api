@@ -12,7 +12,7 @@ class UserSeeder extends Seeder
     {
         // Admin user
         User::create([
-            'name' => 'Admin User',
+            'username' => 'AdminUser',
             'email' => 'admin@test.com',
             'password' => Hash::make('usuario1'),
             'phone' => '+5492914567890',
@@ -27,7 +27,7 @@ class UserSeeder extends Seeder
 
         // Premium user
         User::create([
-            'name' => 'Premium User',
+            'username' => 'PremiumUser',
             'email' => 'premium@example.com',
             'password' => Hash::make('password'),
             'phone' => '+5492914567891',
@@ -42,7 +42,7 @@ class UserSeeder extends Seeder
 
         // Trial user
         User::create([
-            'name' => 'Trial User',
+            'username' => 'TrialUser',
             'email' => 'trial@example.com',
             'password' => Hash::make('password'),
             'phone' => '+5492914567892',
@@ -57,7 +57,7 @@ class UserSeeder extends Seeder
 
         // Regular users
         User::create([
-            'name' => 'John Doe',
+            'username' => 'JohnDoe',
             'email' => 'john@example.com',
             'password' => Hash::make('password'),
             'phone' => '+5492914567893',
@@ -70,7 +70,7 @@ class UserSeeder extends Seeder
         ]);
 
         User::create([
-            'name' => 'Jane Smith',
+            'username' => 'JaneSmith',
             'email' => 'jane@example.com',
             'password' => Hash::make('password'),
             'phone' => '+5492914567894',

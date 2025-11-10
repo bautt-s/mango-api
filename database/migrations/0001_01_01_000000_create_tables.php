@@ -10,7 +10,7 @@ return new class extends Migration {
         // ---- Users ----
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('name')->nullable();
+            $table->string('username', 30)->unique();
             $table->string('email')->unique();
             $table->string('password');
             $table->string('phone')->nullable();
@@ -24,6 +24,7 @@ return new class extends Migration {
             $table->timestamp('trial_ends_at')->nullable();
 
             $table->timestamp('last_login_at')->nullable();
+            $table->timestamp('email_verified_at')->nullable()->default(null);
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();
