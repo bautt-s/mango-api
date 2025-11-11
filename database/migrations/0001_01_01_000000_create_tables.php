@@ -136,6 +136,8 @@ return new class extends Migration {
             $table->boolean('archived')->default(false);
             $table->unsignedInteger('sort_order')->default(0);
             $table->json('metadata')->nullable();
+            
+            $table->softDeletes();
             $table->timestamps();
 
             $table->unique(['user_id', 'label']);
