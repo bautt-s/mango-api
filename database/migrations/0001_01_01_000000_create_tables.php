@@ -13,7 +13,7 @@ return new class extends Migration {
             $table->string('username', 30)->unique();
             $table->string('email')->unique();
             $table->string('password');
-            $table->string('phone')->nullable();
+            $table->string('phone', 12)->nullable();
             $table->string('timezone')->default('America/Argentina/Buenos_Aires');
             $table->string('currency_code', 3)->default('ARS');
             $table->string('locale', 8)->default('es-AR');

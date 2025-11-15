@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\MainAuthController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Configurations\AccountController;
+use App\Http\Controllers\Personal\UserController;
 
 Route::prefix('v1')->group(function () {
 
@@ -16,6 +17,14 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/email-verification-code', [EmailVerificationController::class, 'sendCode']);
         Route::post('/verify-email', [EmailVerificationController::class, 'verifyCode']);
+
+        Route::prefix('user')->group(function () {
+            Route::get('/profile', [UserController::class, 'profile']);
+            Route::put('/profile', [UserController::class, 'updateProfile']);
+            Route::patch('/email', [UserController::class, 'updateEmail']);
+            Route::get('/subscription', [UserController::class, 'subscription']);
+            Route::delete('/account', [UserController::class, 'deleteAccount']);
+        });
 
         Route::prefix('accounts')->group(function () {
             Route::get('/', [AccountController::class, 'index']);
