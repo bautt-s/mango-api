@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Configurations\AccountController;
 use App\Http\Controllers\Configurations\CategoryController;
 use App\Http\Controllers\Configurations\PaymentMethodController;
+use App\Http\Controllers\Configurations\TransactionController;
 use App\Http\Controllers\Personal\UserController;
 
 Route::prefix('v1')->group(function () {
@@ -54,6 +55,17 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
             Route::patch('/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
             Route::patch('/{paymentMethod}/billing-cycle', [PaymentMethodController::class, 'setBillingCycle']);
+        });
+
+        Route::prefix('transactions')->group(function () {
+            Route::get('/', [TransactionController::class, 'index']);
+            Route::post('/expense', [TransactionController::class, 'storeExpense']);
+            Route::post('/income', [TransactionController::class, 'storeIncome']);
+            Route::post('/transfer', [TransactionController::class, 'storeTransfer']);
+            Route::put('/{transaction}', [TransactionController::class, 'update']);
+            Route::delete('/{transaction}', [TransactionController::class, 'destroy']);
+            Route::patch('/{transaction}/tags', [TransactionController::class, 'updateTags']);
+            Route::get('/recurring-groups', [TransactionController::class, 'recurringGroups']);
         });
     });
 
