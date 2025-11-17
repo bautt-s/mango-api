@@ -6,10 +6,15 @@ use App\Models\Personal\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Category extends Model
 {
     use HasFactory, HasUuids;
+
+    protected $table = 'categories';
 
     protected $fillable = [
         'user_id',
@@ -24,91 +29,185 @@ class Category extends Model
 
     protected $casts = [
         'is_system' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
-    // Relationships
-    public function user()
+    protected $attributes = [
+        'is_system' => false,
+        'kind' => 'expense',
+    ];
+
+    /**
+     * Relación con el usuario propietario
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function parent()
+    /**
+     * Relación con la categoría padre
+     */
+    public function parent(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'parent_id');
     }
 
-    public function children()
+    /**
+     * Relación con las categorías hijas
+     */
+    public function children(): HasMany
     {
         return $this->hasMany(Category::class, 'parent_id');
     }
 
-    public function defaultAccount()
+    /**
+     * Relación con la cuenta predeterminada
+     */
+    public function defaultAccount(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'default_account_id');
     }
 
-    public function transactions()
+    /**
+     * Relación con las transacciones
+     */
+    public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
     }
 
-    public function budgets()
-    {
-        return $this->hasMany(Budget::class);
-    }
-
-    // Scopes
+    /**
+     * Scope para obtener solo categorías del sistema
+     */
     public function scopeSystem($query)
     {
-        return $query->where('is_system', true);
+        return $query->where('is_system', true)->whereNull('user_id');
     }
 
-    public function scopeUserOwned($query)
+    /**
+     * Scope para obtener solo categorías de usuario
+     */
+    public function scopeUserOwned($query, string $userId)
     {
-        return $query->where('is_system', false);
+        return $query->where('user_id', $userId)->where('is_system', false);
     }
 
-    public function scopeExpense($query)
+    /**
+     * Scope para obtener categorías disponibles para un usuario
+     * (sistema + propias)
+     */
+    public function scopeAvailableFor($query, string $userId)
     {
-        return $query->whereIn('kind', ['expense', 'both']);
+        return $query->where(function ($q) use ($userId) {
+            $q->where('is_system', true)
+                ->whereNull('user_id')
+                ->orWhere('user_id', $userId);
+        });
     }
 
-    public function scopeIncome($query)
+    /**
+     * Scope para filtrar por tipo
+     */
+    public function scopeOfKind($query, string $kind)
     {
-        return $query->whereIn('kind', ['income', 'both']);
+        return $query->where('kind', $kind);
     }
 
-    public function scopeParents($query)
+    /**
+     * Scope para categorías raíz (sin padre)
+     */
+    public function scopeRoots($query)
     {
         return $query->whereNull('parent_id');
     }
 
-    public function scopeForUser($query, int $userId)
-    {
-        return $query->where(function ($q) use ($userId) {
-            $q->where('user_id', $userId)
-                ->orWhere('is_system', true);
-        });
-    }
-
-    // Helper methods
+    /**
+     * Verifica si la categoría es del sistema
+     */
     public function isSystem(): bool
     {
-        return $this->is_system;
+        return $this->is_system === true;
     }
 
-    public function isExpense(): bool
+    /**
+     * Verifica si la categoría pertenece a un usuario específico
+     */
+    public function belongsToUser(string $userId): bool
     {
-        return in_array($this->kind, ['expense', 'both']);
+        return $this->user_id === $userId;
     }
 
-    public function isIncome(): bool
+    /**
+     * Verifica si es una categoría raíz
+     */
+    public function isRoot(): bool
     {
-        return in_array($this->kind, ['income', 'both']);
+        return $this->parent_id === null;
     }
 
-    public function hasParent(): bool
+    /**
+     * Verifica si tiene categorías hijas
+     */
+    public function hasChildren(): bool
     {
-        return $this->parent_id !== null;
+        return $this->children()->exists();
+    }
+
+    /**
+     * Obtiene todos los ancestros (padres recursivos)
+     */
+    public function ancestors(): array
+    {
+        $ancestors = [];
+        $current = $this->parent;
+
+        while ($current) {
+            $ancestors[] = $current;
+            $current = $current->parent;
+        }
+
+        return $ancestors;
+    }
+
+    /**
+     * Obtiene todos los descendientes (hijos recursivos)
+     */
+    public function descendants(): array
+    {
+        $descendants = [];
+
+        foreach ($this->children as $child) {
+            $descendants[] = $child;
+            $descendants = array_merge($descendants, $child->descendants());
+        }
+
+        return $descendants;
+    }
+
+    /**
+     * Verifica si esta categoría es ancestro de otra
+     */
+    public function isAncestorOf(Category $category): bool
+    {
+        $current = $category->parent;
+
+        while ($current) {
+            if ($current->id === $this->id) {
+                return true;
+            }
+            $current = $current->parent;
+        }
+
+        return false;
+    }
+
+    /**
+     * Verifica si esta categoría es descendiente de otra
+     */
+    public function isDescendantOf(Category $category): bool
+    {
+        return $category->isAncestorOf($this);
     }
 }

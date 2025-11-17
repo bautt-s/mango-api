@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\MainAuthController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Configurations\AccountController;
+use App\Http\Controllers\Configurations\CategoryController;
+use App\Http\Controllers\Configurations\PaymentMethodController;
 use App\Http\Controllers\Personal\UserController;
 
 Route::prefix('v1')->group(function () {
@@ -34,6 +36,24 @@ Route::prefix('v1')->group(function () {
             Route::patch('/{account}/unarchive', [AccountController::class, 'unarchive']);
             Route::patch('/{account}/default', [AccountController::class, 'setDefault']);
             Route::patch('/reorder', [AccountController::class, 'reorder']);
+        });
+
+        Route::prefix('categories')->group(function () {
+            Route::get('/', [CategoryController::class, 'index']);
+            Route::get('/roots', [CategoryController::class, 'roots']);
+            Route::post('/', [CategoryController::class, 'store']);
+            Route::put('/{category}', [CategoryController::class, 'update']);
+            Route::delete('/{category}', [CategoryController::class, 'destroy']);
+            Route::get('/{category}/stats', [CategoryController::class, 'stats']);
+        });
+
+        Route::prefix('payment-methods')->group(function () {
+            Route::get('/', [PaymentMethodController::class, 'index']);
+            Route::post('/', [PaymentMethodController::class, 'store']);
+            Route::put('/{paymentMethod}', [PaymentMethodController::class, 'update']);
+            Route::delete('/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
+            Route::patch('/{paymentMethod}/default', [PaymentMethodController::class, 'setDefault']);
+            Route::patch('/{paymentMethod}/billing-cycle', [PaymentMethodController::class, 'setBillingCycle']);
         });
     });
 

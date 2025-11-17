@@ -31,7 +31,7 @@ class AccountService
             if (!isset($data['sort_order'])) {
                 $maxOrder = $user->accounts()->max('sort_order') ?? -1;
                 $data['sort_order'] = $maxOrder + 1;
-            }
+            } 
 
             // Validate label uniqueness for this user
             $existingAccount = $user->accounts()
