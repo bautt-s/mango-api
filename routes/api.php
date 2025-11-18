@@ -6,18 +6,22 @@ use App\Http\Controllers\Auth\MainAuthController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Configurations\AccountController;
+use App\Http\Controllers\Configurations\BudgetController;
 use App\Http\Controllers\Configurations\CategoryController;
 use App\Http\Controllers\Configurations\PaymentMethodController;
 use App\Http\Controllers\Configurations\TransactionController;
 use App\Http\Controllers\Personal\UserController;
 
 Route::prefix('v1')->group(function () {
+    Route::post('/register', [MainAuthController::class, 'register']);
+    Route::post('/login', [MainAuthController::class, 'login']);
+    Route::post('/send-code', [ForgotPasswordController::class, 'sendCode']);
+    Route::post('/validate-code', [ForgotPasswordController::class, 'validateCode']);
+    Route::post('/reset-password', [ForgotPasswordController::class, 'changePassword']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/user', [MainAuthController::class, 'getLoggedUser']);
-
         Route::post('/logout', [MainAuthController::class, 'logout']);
-
         Route::post('/email-verification-code', [EmailVerificationController::class, 'sendCode']);
         Route::post('/verify-email', [EmailVerificationController::class, 'verifyCode']);
 
@@ -67,11 +71,15 @@ Route::prefix('v1')->group(function () {
             Route::patch('/{transaction}/tags', [TransactionController::class, 'updateTags']);
             Route::get('/recurring-groups', [TransactionController::class, 'recurringGroups']);
         });
-    });
 
-    Route::post('/register', [MainAuthController::class, 'register']);
-    Route::post('/login', [MainAuthController::class, 'login']);
-    Route::post('/send-code', [ForgotPasswordController::class, 'sendCode']);
-    Route::post('/validate-code', [ForgotPasswordController::class, 'validateCode']);
-    Route::post('/reset-password', [ForgotPasswordController::class, 'changePassword']);
+        Route::prefix('budgets')->group(function () {
+            Route::get('/', [BudgetController::class, 'index']);
+            Route::post('/', [BudgetController::class, 'store']);
+            Route::get('/current', [BudgetController::class, 'current']);
+            Route::get('/{budget}', [BudgetController::class, 'show']);
+            Route::put('/{budget}', [BudgetController::class, 'update']);
+            Route::delete('/{budget}', [BudgetController::class, 'destroy']);
+            Route::patch('/{budget}/rollover', [BudgetController::class, 'toggleRollover']);
+        });
+    });
 });

@@ -136,7 +136,7 @@ return new class extends Migration {
             $table->boolean('archived')->default(false);
             $table->unsignedInteger('sort_order')->default(0);
             $table->json('metadata')->nullable();
-            
+
             $table->softDeletes();
             $table->timestamps();
 
@@ -267,6 +267,7 @@ return new class extends Migration {
             $table->unsignedBigInteger('limit_cents');
             $table->string('currency_code', 3)->default('ARS');
             $table->enum('period', ['monthly', 'yearly']);
+            $table->json('metadata')->nullable();
             $table->timestamps();
             $table->unique(['user_id', 'category_id', 'period']);
         });

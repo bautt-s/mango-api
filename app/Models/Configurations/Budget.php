@@ -15,59 +15,108 @@ class Budget extends Model
         'name',
         'user_id',
         'category_id',
-        'limit_cents', 
+        'limit_cents',
         'currency_code',
         'period',
+        'metadata',
     ];
 
     protected $casts = [
         'limit_cents' => 'integer',
+        'metadata' => 'array',
     ];
 
-    // Relationships
+    // ===== RELATIONSHIPS =====
+
+    /**
+     * Relación con User
+     */
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Relación con Category
+     */
     public function category()
     {
         return $this->belongsTo(Category::class);
     }
 
-    // Scopes
+    // ===== SCOPES =====
+
+    /**
+     * Filtrar presupuestos mensuales
+     */
     public function scopeMonthly($query)
     {
         return $query->where('period', 'monthly');
     }
 
+    /**
+     * Filtrar presupuestos anuales
+     */
     public function scopeYearly($query)
     {
         return $query->where('period', 'yearly');
     }
 
+    /**
+     * Filtrar presupuestos globales (sin categoría)
+     */
     public function scopeGlobal($query)
     {
         return $query->whereNull('category_id');
     }
 
-    public function scopeForCategory($query, int $categoryId)
+    /**
+     * Filtrar por categoría específica
+     */
+    public function scopeForCategory($query, string $categoryId)
     {
         return $query->where('category_id', $categoryId);
     }
 
-    // Accessors
+    /**
+     * Filtrar por usuario
+     */
+    public function scopeForUser($query, string $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    // ===== ACCESSORS =====
+
+    /**
+     * Obtener el límite en formato decimal
+     */
     public function getLimitAttribute(): float
     {
         return $this->limit_cents / 100;
     }
 
-    // Helper methods
+    // ===== HELPER METHODS =====
+
+    /**
+     * Verificar si el presupuesto es global
+     */
     public function isGlobal(): bool
     {
         return $this->category_id === null;
     }
 
+    /**
+     * Verificar si pertenece a un usuario
+     */
+    public function belongsToUser(string $userId): bool
+    {
+        return $this->user_id === $userId;
+    }
+
+    /**
+     * Calcular el monto gastado en el período actual
+     */
     public function getSpentAmount(): int
     {
         $startDate = $this->period === 'monthly'
@@ -86,14 +135,20 @@ class Budget extends Model
             $query->where('category_id', $this->category_id);
         }
 
-        return $query->sum('amount_cents');
+        return (int) $query->sum('amount_cents');
     }
 
+    /**
+     * Calcular el monto restante
+     */
     public function getRemainingAmount(): int
     {
         return max(0, $this->limit_cents - $this->getSpentAmount());
     }
 
+    /**
+     * Calcular el porcentaje usado
+     */
     public function getPercentageUsed(): float
     {
         if ($this->limit_cents == 0) {
@@ -103,8 +158,27 @@ class Budget extends Model
         return min(100, ($this->getSpentAmount() / $this->limit_cents) * 100);
     }
 
+    /**
+     * Verificar si se excedió el presupuesto
+     */
     public function isOverBudget(): bool
     {
         return $this->getSpentAmount() > $this->limit_cents;
+    }
+
+    /**
+     * Verificar si el rollover está habilitado
+     */
+    public function hasRolloverEnabled(): bool
+    {
+        return $this->metadata['enable_rollover'] ?? false;
+    }
+
+    /**
+     * Obtener el umbral de alerta
+     */
+    public function getAlertThreshold(): ?int
+    {
+        return $this->metadata['alert_threshold'] ?? null;
     }
 }
