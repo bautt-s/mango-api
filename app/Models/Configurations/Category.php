@@ -124,6 +124,22 @@ class Category extends Model
     }
 
     /**
+     * Scope para obtener solo categorías de gastos
+     */
+    public function scopeExpense($query)
+    {
+        return $query->where('kind', 'expense');
+    }
+
+    /**
+     * Scope para obtener solo categorías de ingresos
+     */
+    public function scopeIncome($query)
+    {
+        return $query->where('kind', 'income');
+    }
+
+    /**
      * Verifica si la categoría es del sistema
      */
     public function isSystem(): bool
