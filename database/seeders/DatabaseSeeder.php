@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             TransactionSeeder::class,
             BudgetSeeder::class,
             MilestoneSeeder::class,
+            AlertSeeder::class,
         ]);
     }
 }

@@ -309,10 +309,86 @@ return new class extends Migration {
             $table->timestamp('rotated_at')->nullable();
             $table->timestamps();
         });
+
+        // ---- Alerts table ----
+        Schema::create('alerts', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            
+            $table->enum('type', [
+                'budget_threshold',
+                'budget_exceeded',
+                'payment_due',
+                'low_balance',
+                'milestone_reached',
+                'unusual_spending',
+                'recurring_transaction_missed'
+            ])->index();
+            
+            $table->string('name');
+            $table->text('description')->nullable();
+            
+            $table->json('conditions');
+            $table->json('metadata')->nullable();
+            
+            $table->boolean('active')->default(true)->index();
+            $table->timestamp('last_triggered_at')->nullable();
+            $table->timestamp('snoozed_until')->nullable();
+
+            $table->enum('frequency', ['once', 'daily', 'weekly', 'monthly', 'every_time'])->default('once');
+            $table->unsignedInteger('trigger_count')->default(0);
+            
+            $table->timestamps();
+            
+            $table->index(['user_id', 'active']);
+            $table->index(['type', 'active']);
+            $table->index(['snoozed_until']);
+        });
+
+        // ---- Alert Preferences (User Notification Settings) ----
+        Schema::create('alert_preferences', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('user_id')->unique()->constrained()->cascadeOnDelete();
+            $table->boolean('email_enabled')->default(true);
+            $table->boolean('whatsapp_enabled')->default(false);
+            $table->boolean('in_app_enabled')->default(true);
+            $table->json('type_preferences')->nullable();
+            $table->json('quiet_hours')->nullable();
+            $table->json('active_days')->nullable();
+            $table->boolean('enable_digest')->default(false);
+            $table->enum('digest_frequency', ['daily', 'weekly'])->nullable();
+            $table->time('digest_time')->nullable();
+            $table->timestamps();
+        });
+
+        // ---- Alert Notifications (Log of sent notifications) ----
+        Schema::create('alert_notifications', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('alert_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            $table->enum('channel', ['email', 'whatsapp', 'in_app', 'push'])->index();
+            $table->enum('status', ['pending', 'sent', 'delivered', 'failed', 'read'])->default('pending')->index();
+            $table->text('message_body')->nullable();
+            $table->json('delivery_metadata')->nullable();
+
+            $table->timestamp('sent_at')->nullable();
+            $table->timestamp('delivered_at')->nullable();
+            $table->timestamp('read_at')->nullable();
+            $table->timestamp('failed_at')->nullable();
+            $table->text('error_message')->nullable();
+
+            $table->timestamps();
+            
+            $table->index(['user_id', 'status']);
+            $table->index(['alert_id', 'sent_at']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('alert_notifications');
+        Schema::dropIfExists('alert_preferences');
+        Schema::dropIfExists('alerts');
         Schema::dropIfExists('user_keys');
         Schema::dropIfExists('webhook_events');
         Schema::dropIfExists('milestones');

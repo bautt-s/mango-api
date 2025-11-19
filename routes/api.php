@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Alerts\AlertController;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Auth\MainAuthController;
@@ -80,6 +81,24 @@ Route::prefix('v1')->group(function () {
             Route::put('/{budget}', [BudgetController::class, 'update']);
             Route::delete('/{budget}', [BudgetController::class, 'destroy']);
             Route::patch('/{budget}/rollover', [BudgetController::class, 'toggleRollover']);
+        });
+
+        Route::prefix('alerts')->group(function () {
+            Route::get('/types', [AlertController::class, 'getAlertTypes']);
+            Route::get('/preferences', [AlertController::class, 'getPreferences']);
+            Route::put('/preferences', [AlertController::class, 'updatePreferences']);
+            Route::get('/notifications/unread', [AlertController::class, 'getUnreadNotifications']);
+            Route::patch('/notifications/{notification}/read', [AlertController::class, 'markNotificationAsRead']);
+            Route::get('/', [AlertController::class, 'index']);
+            Route::post('/', [AlertController::class, 'store']);
+            Route::get('/{alert}', [AlertController::class, 'show']);
+            Route::put('/{alert}', [AlertController::class, 'update']);
+            Route::delete('/{alert}', [AlertController::class, 'destroy']);
+            Route::patch('/{alert}/activate', [AlertController::class, 'activate']);
+            Route::patch('/{alert}/deactivate', [AlertController::class, 'deactivate']);
+            Route::post('/{alert}/snooze', [AlertController::class, 'snooze']);
+            Route::post('/{alert}/unsnooze', [AlertController::class, 'unsnooze']);
+            Route::post('/{alert}/test', [AlertController::class, 'test']);
         });
     });
 });
