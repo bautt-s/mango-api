@@ -6,7 +6,10 @@ use App\Models\Configurations\Account;
 use App\Models\Alerts\Alert;
 use App\Models\Alerts\AlertPreference;
 use App\Models\Configurations\Budget;
+use App\Models\Configurations\Category;
 use App\Models\Configurations\PaymentMethod;
+use App\Models\Configurations\Transaction;
+use App\Models\Personal\Milestone;
 use App\Models\Personal\User;
 use Illuminate\Database\Seeder;
 
@@ -80,6 +83,97 @@ class AlertSeeder extends Seeder
                     'conditions' => [
                         'account_id' => $account->id,
                         'threshold_cents' => 50000, // 500 ARS
+                    ],
+                    'active' => true,
+                    'frequency' => 'daily',
+                ]);
+            }
+
+            // Create milestone alerts
+            $milestones = Milestone::where('user_id', $user->id)
+                ->whereNull('reached_at') // Only for unachieved milestones
+                ->take(2)
+                ->get();
+
+            foreach ($milestones as $milestone) {
+                Alert::create([
+                    'user_id' => $user->id,
+                    'type' => 'milestone_reached',
+                    'name' => "Notificar Hito - {$milestone->title}",
+                    'description' => "Notificar cuando se alcance el hito '{$milestone->title}'",
+                    'conditions' => [
+                        'milestone_code' => $milestone->code,
+                    ],
+                    'active' => true,
+                    'frequency' => 'once',
+                ]);
+            }
+
+            // Create unusual spending alert for a random category
+            $randomCategory = Category::where('user_id', $user->id)
+                ->where('kind', 'expense')
+                ->inRandomOrder()
+                ->first();
+
+            if ($randomCategory) {
+                Alert::create([
+                    'user_id' => $user->id,
+                    'type' => 'unusual_spending',
+                    'name' => "Gasto Inusual - {$randomCategory->name}",
+                    'description' => "Detectar gastos inusuales en la categoría '{$randomCategory->name}'",
+                    'conditions' => [
+                        'category_id' => $randomCategory->id,
+                        'threshold_percentage' => 200, // 200% of average
+                        'lookback_days' => 30,
+                    ],
+                    'active' => true,
+                    'frequency' => 'every_time',
+                ]);
+            }
+
+            // Create general unusual spending alert (all categories)
+            Alert::create([
+                'user_id' => $user->id,
+                'type' => 'unusual_spending',
+                'name' => "Gasto Inusual General",
+                'description' => "Detectar gastos inusuales en todas las categorías",
+                'conditions' => [
+                    'category_id' => null, // All categories
+                    'threshold_percentage' => 150,
+                    'lookback_days' => 30,
+                ],
+                'active' => true,
+                'frequency' => 'daily',
+            ]);
+
+            // Create recurring transaction missed alert
+            $recurringGroups = Transaction::where('user_id', $user->id)
+                ->whereNotNull('recurrence_group_id')
+                ->where('is_recurring', true)
+                ->select('recurrence_group_id')
+                ->groupBy('recurrence_group_id')
+                ->havingRaw('COUNT(*) >= 2')
+                ->limit(2)
+                ->get();
+
+            foreach ($recurringGroups as $group) {
+                // Get a sample transaction from the group
+                $sampleTransaction = Transaction::where('user_id', $user->id)
+                    ->where('recurrence_group_id', $group->recurrence_group_id)
+                    ->first();
+
+                $label = $sampleTransaction->description
+                    ?? $sampleTransaction->merchant
+                    ?? ($sampleTransaction->category ? $sampleTransaction->category->name : 'Transacción');
+
+                Alert::create([
+                    'user_id' => $user->id,
+                    'type' => 'recurring_transaction_missed',
+                    'name' => "Transacción Recurrente - {$label}",
+                    'description' => "Notificar si no se registra la transacción recurrente '{$label}'",
+                    'conditions' => [
+                        'recurrence_group_id' => $group->recurrence_group_id,
+                        'tolerance_days' => 3,
                     ],
                     'active' => true,
                     'frequency' => 'daily',

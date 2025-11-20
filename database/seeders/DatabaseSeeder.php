@@ -9,7 +9,6 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            PlanSeeder::class,
             CategorySeeder::class,
             UserSeeder::class,
             ExchangeRateSeeder::class,
@@ -19,6 +18,7 @@ class DatabaseSeeder extends Seeder
             BudgetSeeder::class,
             MilestoneSeeder::class,
             AlertSeeder::class,
+            FeatureSeeder::class,
         ]);
     }
 }

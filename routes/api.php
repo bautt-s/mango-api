@@ -11,6 +11,8 @@ use App\Http\Controllers\Configurations\BudgetController;
 use App\Http\Controllers\Configurations\CategoryController;
 use App\Http\Controllers\Configurations\PaymentMethodController;
 use App\Http\Controllers\Configurations\TransactionController;
+use App\Http\Controllers\Features\FeatureController;
+use App\Http\Controllers\Personal\MilestoneController;
 use App\Http\Controllers\Personal\UserController;
 
 Route::prefix('v1')->group(function () {
@@ -99,6 +101,22 @@ Route::prefix('v1')->group(function () {
             Route::post('/{alert}/snooze', [AlertController::class, 'snooze']);
             Route::post('/{alert}/unsnooze', [AlertController::class, 'unsnooze']);
             Route::post('/{alert}/test', [AlertController::class, 'test']);
+        });
+
+        Route::prefix('features')->group(function () {
+            Route::get('/', [FeatureController::class, 'index']);
+            Route::get('/quotas', [FeatureController::class, 'quotas']);
+            Route::get('/plans', [FeatureController::class, 'plans']);
+            Route::get('/{slug}/check', [FeatureController::class, 'check']);
+        });
+
+        Route::prefix('milestones')->group(function () {
+            Route::get('/', [MilestoneController::class, 'index']);
+            Route::get('/progress', [MilestoneController::class, 'progress']);
+            Route::get('/recent', [MilestoneController::class, 'recent']);
+            Route::get('/stats', [MilestoneController::class, 'stats']);
+            Route::post('/check', [MilestoneController::class, 'check']);
+            Route::get('/{milestone}', [MilestoneController::class, 'show']);
         });
     });
 });

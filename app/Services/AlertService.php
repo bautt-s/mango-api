@@ -141,25 +141,6 @@ class AlertService
         }
     }
 
-    // ==================== Alert Evaluation ====================
-
-    /**
-     * Evaluate all active alerts for a user
-     */
-    public function evaluateAlertsForUser(User $user): array
-    {
-        $alerts = Alert::forUser($user)->readyToTrigger()->get();
-        $triggered = [];
-
-        foreach ($alerts as $alert) {
-            if ($this->evaluateAlert($alert)) {
-                $triggered[] = $alert;
-            }
-        }
-
-        return $triggered;
-    }
-
     /**
      * Evaluate a specific alert
      */
@@ -327,13 +308,6 @@ class AlertService
         return $balance <= $thresholdCents;
     }
 
-    private function evaluateRecurringTransactionMissed(Alert $alert): bool
-    {
-        // TODO: Implement when recurrence system is ready
-        // Check if expected recurring transaction was not created within expected timeframe
-        return false;
-    }
-
     // ==================== Alert Preferences ====================
 
     public function getOrCreatePreferences(User $user): AlertPreference
@@ -427,19 +401,6 @@ class AlertService
         ]);
     }
 
-    // ==================== Message Generation ====================
-
-    private function generateAlertMessage(Alert $alert): string
-    {
-        return match ($alert->type) {
-            'budget_threshold' => $this->generateBudgetThresholdMessage($alert),
-            'budget_exceeded' => $this->generateBudgetExceededMessage($alert),
-            'payment_due' => $this->generatePaymentDueMessage($alert),
-            'low_balance' => $this->generateLowBalanceMessage($alert),
-            default => "Alerta: {$alert->name}",
-        };
-    }
-
     private function generateBudgetThresholdMessage(Alert $alert): string
     {
         $budgetId = $alert->getConditionValue('budget_id');
@@ -506,18 +467,6 @@ class AlertService
         $threshold = number_format($thresholdCents / 100, 2);
 
         return "⚠️ Saldo bajo en '{$account->label}': {$balanceFormatted} {$account->currency_code} (umbral: {$threshold})";
-    }
-
-    // ==================== Validation ====================
-
-    private function validateConditions(string $type, array $conditions): void
-    {
-        match ($type) {
-            'budget_threshold', 'budget_exceeded' => $this->validateBudgetConditions($conditions),
-            'payment_due' => $this->validatePaymentDueConditions($conditions),
-            'low_balance' => $this->validateLowBalanceConditions($conditions),
-            default => null,
-        };
     }
 
     private function validateBudgetConditions(array $conditions): void
@@ -588,5 +537,370 @@ class AlertService
         }
 
         return $notification->markAsRead();
+    }
+
+    /**
+     * Evaluate if a milestone has been reached
+     * 
+     * Conditions required:
+     * - milestone_code: string (code of the milestone to check)
+     * 
+     * Triggers when: User reaches a specific milestone
+     */
+    private function evaluateMilestoneReached(Alert $alert): bool
+    {
+        $milestoneCode = $alert->getConditionValue('milestone_code');
+
+        if (!$milestoneCode) {
+            return false;
+        }
+
+        // Check if milestone exists and has been reached recently
+        $milestone = \App\Models\Personal\Milestone::where('user_id', $alert->user_id)
+            ->where('code', $milestoneCode)
+            ->whereNotNull('reached_at')
+            ->first();
+
+        if (!$milestone) {
+            return false;
+        }
+
+        // Only trigger if milestone was reached after the last alert trigger
+        // or if this is the first time the alert is evaluated
+        if ($alert->last_triggered_at) {
+            return $milestone->reached_at->isAfter($alert->last_triggered_at);
+        }
+
+        // If never triggered, check if milestone was reached in the last 24 hours
+        return $milestone->reached_at->isAfter(now()->subDay());
+    }
+
+    /**
+     * Evaluate if there's unusual spending in a category
+     * 
+     * Conditions required:
+     * - category_id: uuid (optional, null for all categories)
+     * - threshold_percentage: int (percentage above average to trigger, default 150)
+     * - lookback_days: int (days to calculate average, default 30)
+     * 
+     * Triggers when: Single transaction amount exceeds threshold % of average
+     */
+    private function evaluateUnusualSpending(Alert $alert): bool
+    {
+        $categoryId = $alert->getConditionValue('category_id');
+        $thresholdPercentage = $alert->getConditionValue('threshold_percentage', 150);
+        $lookbackDays = $alert->getConditionValue('lookback_days', 30);
+
+        // Get date range for analysis
+        $startDate = now()->subDays($lookbackDays);
+        $endDate = now();
+
+        // Build query for historical transactions
+        $query = \App\Models\Configurations\Transaction::where('user_id', $alert->user_id)
+            ->where('type', 'expense')
+            ->whereBetween('occurred_at', [$startDate, $endDate]);
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        // Calculate average transaction amount (excluding outliers)
+        $transactions = $query->get();
+
+        if ($transactions->count() < 5) {
+            // Not enough data to determine unusual spending
+            return false;
+        }
+
+        // Calculate average (excluding top 10% as outliers)
+        $amounts = $transactions->pluck('amount_cents')->sort()->values();
+        $excludeCount = (int) ceil($amounts->count() * 0.1);
+        $trimmedAmounts = $amounts->slice(0, $amounts->count() - $excludeCount);
+
+        $averageAmount = $trimmedAmounts->average();
+
+        if ($averageAmount <= 0) {
+            return false;
+        }
+
+        // Check if there are recent transactions exceeding the threshold
+        $thresholdAmount = $averageAmount * ($thresholdPercentage / 100);
+
+        $recentUnusual = \App\Models\Configurations\Transaction::where('user_id', $alert->user_id)
+            ->where('type', 'expense')
+            ->where('amount_cents', '>', $thresholdAmount);
+
+        if ($categoryId) {
+            $recentUnusual->where('category_id', $categoryId);
+        }
+
+        // Check transactions since last trigger or last 24 hours
+        if ($alert->last_triggered_at) {
+            $recentUnusual->where('occurred_at', '>', $alert->last_triggered_at);
+        } else {
+            $recentUnusual->where('occurred_at', '>', now()->subDay());
+        }
+
+        $unusualTransaction = $recentUnusual->first();
+
+        if ($unusualTransaction) {
+            // Store transaction details in alert metadata for message generation
+            $alert->metadata = array_merge($alert->metadata ?? [], [
+                'last_unusual_transaction_id' => $unusualTransaction->id,
+                'last_unusual_amount_cents' => $unusualTransaction->amount_cents,
+                'calculated_average_cents' => (int) $averageAmount,
+                'threshold_amount_cents' => (int) $thresholdAmount,
+            ]);
+            $alert->save();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Evaluate if a recurring transaction was missed
+     * 
+     * Conditions required:
+     * - recurrence_group_id: uuid (group ID of recurring transactions)
+     * - tolerance_days: int (days of tolerance before alerting, default 2)
+     * 
+     * Triggers when: Expected recurring transaction hasn't occurred within tolerance period
+     */
+    private function evaluateRecurringTransactionMissed(Alert $alert): bool
+    {
+        $recurrenceGroupId = $alert->getConditionValue('recurrence_group_id');
+        $toleranceDays = $alert->getConditionValue('tolerance_days', 2);
+
+        if (!$recurrenceGroupId) {
+            return false;
+        }
+
+        // Get all transactions in the recurrence group
+        $transactions = \App\Models\Configurations\Transaction::where('user_id', $alert->user_id)
+            ->where('recurrence_group_id', $recurrenceGroupId)
+            ->orderBy('occurred_at', 'desc')
+            ->get();
+
+        if ($transactions->count() < 2) {
+            // Need at least 2 transactions to establish a pattern
+            return false;
+        }
+
+        // Calculate average interval between transactions
+        $intervals = [];
+        for ($i = 0; $i < $transactions->count() - 1; $i++) {
+            $current = $transactions[$i];
+            $previous = $transactions[$i + 1];
+
+            $intervalDays = $current->occurred_at->diffInDays($previous->occurred_at);
+            $intervals[] = $intervalDays;
+        }
+
+        if (empty($intervals)) {
+            return false;
+        }
+
+        // Calculate average interval (excluding outliers)
+        sort($intervals);
+        $count = count($intervals);
+        $excludeCount = (int) ceil($count * 0.2); // Exclude top/bottom 10% each
+
+        if ($count > 4) {
+            $trimmedIntervals = array_slice($intervals, $excludeCount, $count - (2 * $excludeCount));
+        } else {
+            $trimmedIntervals = $intervals;
+        }
+
+        $averageInterval = array_sum($trimmedIntervals) / count($trimmedIntervals);
+
+        // Get the last transaction
+        $lastTransaction = $transactions->first();
+        $daysSinceLastTransaction = now()->diffInDays($lastTransaction->occurred_at);
+
+        // Expected next transaction date with tolerance
+        $expectedMaxDays = $averageInterval + $toleranceDays;
+
+        // Check if we've passed the expected date plus tolerance
+        if ($daysSinceLastTransaction > $expectedMaxDays) {
+            // Store details for message generation
+            $alert->metadata = array_merge($alert->metadata ?? [], [
+                'last_transaction_id' => $lastTransaction->id,
+                'last_transaction_date' => $lastTransaction->occurred_at->toDateString(),
+                'days_since_last' => $daysSinceLastTransaction,
+                'expected_interval_days' => (int) $averageInterval,
+                'days_overdue' => (int) ($daysSinceLastTransaction - $averageInterval),
+            ]);
+            $alert->save();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // ==================== AGREGAR ESTOS GENERADORES DE MENSAJES ====================
+
+    private function generateMilestoneReachedMessage(Alert $alert): string
+    {
+        $milestoneCode = $alert->getConditionValue('milestone_code');
+
+        $milestone = \App\Models\Personal\Milestone::where('user_id', $alert->user_id)
+            ->where('code', $milestoneCode)
+            ->whereNotNull('reached_at')
+            ->first();
+
+        if (!$milestone) {
+            return "¡Has alcanzado un hito!";
+        }
+
+        $title = $milestone->title;
+        $description = $milestone->description;
+
+        return "🏆 ¡Felicitaciones! Has alcanzado el hito '{$title}': {$description}";
+    }
+
+    private function generateUnusualSpendingMessage(Alert $alert): string
+    {
+        $categoryId = $alert->getConditionValue('category_id');
+        $metadata = $alert->metadata ?? [];
+
+        $unusualAmount = $metadata['last_unusual_amount_cents'] ?? 0;
+        $averageAmount = $metadata['calculated_average_cents'] ?? 0;
+
+        $unusualFormatted = number_format($unusualAmount / 100, 2);
+        $averageFormatted = number_format($averageAmount / 100, 2);
+
+        $currency = $alert->user->currency_code;
+
+        if ($categoryId) {
+            $category = \App\Models\Configurations\Category::find($categoryId);
+            $categoryName = $category ? $category->name : 'una categoría';
+
+            return "⚠️ Gasto inusual detectado en '{$categoryName}': {$unusualFormatted} {$currency} (promedio: {$averageFormatted})";
+        }
+
+        return "⚠️ Gasto inusual detectado: {$unusualFormatted} {$currency} (tu promedio es {$averageFormatted})";
+    }
+
+    private function generateRecurringTransactionMissedMessage(Alert $alert): string
+    {
+        $metadata = $alert->metadata ?? [];
+
+        $daysOverdue = $metadata['days_overdue'] ?? 0;
+        $lastDate = $metadata['last_transaction_date'] ?? 'fecha desconocida';
+
+        // Try to get transaction details
+        $transactionId = $metadata['last_transaction_id'] ?? null;
+        $transactionLabel = 'transacción recurrente';
+
+        if ($transactionId) {
+            $transaction = \App\Models\Configurations\Transaction::find($transactionId);
+            if ($transaction && $transaction->description) {
+                $transactionLabel = $transaction->description;
+            } elseif ($transaction && $transaction->merchant) {
+                $transactionLabel = $transaction->merchant;
+            } elseif ($transaction && $transaction->category) {
+                $transactionLabel = $transaction->category->name;
+            }
+        }
+
+        return "📅 No se registró la transacción recurrente esperada '{$transactionLabel}'. Última vez: {$lastDate} ({$daysOverdue} días de retraso)";
+    }
+
+    /**
+     * Generate alert message based on type
+     */
+    private function generateAlertMessage(Alert $alert): string
+    {
+        return match ($alert->type) {
+            'budget_threshold' => $this->generateBudgetThresholdMessage($alert),
+            'budget_exceeded' => $this->generateBudgetExceededMessage($alert),
+            'payment_due' => $this->generatePaymentDueMessage($alert),
+            'low_balance' => $this->generateLowBalanceMessage($alert),
+            'milestone_reached' => $this->generateMilestoneReachedMessage($alert),
+            'unusual_spending' => $this->generateUnusualSpendingMessage($alert),
+            'recurring_transaction_missed' => $this->generateRecurringTransactionMissedMessage($alert),
+            default => "Tienes una nueva notificación.",
+        };
+    }
+
+    // ==================== ACTUALIZAR EL MÉTODO validateConditions ====================
+
+    private function validateConditions(string $type, array $conditions): void
+    {
+        match ($type) {
+            'budget_threshold', 'budget_exceeded' => $this->validateBudgetConditions($conditions),
+            'payment_due' => $this->validatePaymentDueConditions($conditions),
+            'low_balance' => $this->validateLowBalanceConditions($conditions),
+            'milestone_reached' => $this->validateMilestoneConditions($conditions),
+            'unusual_spending' => $this->validateUnusualSpendingConditions($conditions),
+            'recurring_transaction_missed' => $this->validateRecurringTransactionMissedConditions($conditions),
+            default => null,
+        };
+    }
+
+    // ==================== AGREGAR VALIDADORES ====================
+
+    private function validateMilestoneConditions(array $conditions): void
+    {
+        if (!isset($conditions['milestone_code'])) {
+            throw new \InvalidArgumentException('El código del hito es requerido.');
+        }
+
+        if (!is_string($conditions['milestone_code']) || empty($conditions['milestone_code'])) {
+            throw new \InvalidArgumentException('El código del hito debe ser una cadena válida.');
+        }
+    }
+
+    private function validateUnusualSpendingConditions(array $conditions): void
+    {
+        // category_id is optional
+        if (isset($conditions['category_id'])) {
+            $category = \App\Models\Configurations\Category::find($conditions['category_id']);
+            if (!$category) {
+                throw new \InvalidArgumentException('La categoría especificada no existe.');
+            }
+        }
+
+        // threshold_percentage is optional but should be valid if provided
+        if (isset($conditions['threshold_percentage'])) {
+            $threshold = $conditions['threshold_percentage'];
+            if (!is_numeric($threshold) || $threshold < 100 || $threshold > 500) {
+                throw new \InvalidArgumentException('El porcentaje del umbral debe estar entre 100 y 500.');
+            }
+        }
+
+        // lookback_days is optional but should be valid if provided
+        if (isset($conditions['lookback_days'])) {
+            $days = $conditions['lookback_days'];
+            if (!is_numeric($days) || $days < 7 || $days > 90) {
+                throw new \InvalidArgumentException('Los días de retrospectiva deben estar entre 7 y 90.');
+            }
+        }
+    }
+
+    private function validateRecurringTransactionMissedConditions(array $conditions): void
+    {
+        if (!isset($conditions['recurrence_group_id'])) {
+            throw new \InvalidArgumentException('El ID del grupo de recurrencia es requerido.');
+        }
+
+        // Verify that the recurrence group exists and has transactions
+        $count = \App\Models\Configurations\Transaction::where('recurrence_group_id', $conditions['recurrence_group_id'])
+            ->count();
+
+        if ($count < 2) {
+            throw new \InvalidArgumentException('El grupo de recurrencia debe tener al menos 2 transacciones para establecer un patrón.');
+        }
+
+        // tolerance_days is optional but should be valid if provided
+        if (isset($conditions['tolerance_days'])) {
+            $days = $conditions['tolerance_days'];
+            if (!is_numeric($days) || $days < 0 || $days > 14) {
+                throw new \InvalidArgumentException('Los días de tolerancia deben estar entre 0 y 14.');
+            }
+        }
     }
 }
