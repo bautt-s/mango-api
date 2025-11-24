@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Http\Resources\Subscriptions;
 
 use Illuminate\Http\Request;
@@ -9,11 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class PlanResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
@@ -21,21 +14,76 @@ class PlanResource extends JsonResource
             'code' => $this->code,
             'name' => $this->name,
             'interval' => $this->interval,
-            'price_cents' => $this->price_cents,
-            'price_formatted' => $this->formatPrice(),
-            'currency_code' => $this->currency_code,
             'active' => $this->active,
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+
+            // Precios
+            'price' => $this->price,
+            'price_cents' => $this->price_cents,
+            'currency_code' => $this->currency_code,
+            'price_formatted' => $this->formatPrice(),
+
+            // Información del intervalo
+            'interval_label' => $this->getIntervalLabel(),
+            'interval_count' => $this->getIntervalCount(),
+
+            // Features (si están cargadas)
+            'features' => $this->when(
+                $this->relationLoaded('features'),
+                function () {
+                    return $this->features->map(function ($feature) {
+                        return [
+                            'slug' => $feature->slug,
+                            'kind' => $feature->kind,
+                            'enabled' => $feature->pivot->enabled,
+                            'quota' => $feature->pivot->quota_override ?? $feature->default_quota,
+                            'description' => $feature->description,
+                        ];
+                    });
+                }
+            ),
+
+            // Timestamps
+            'created_at' => $this->created_at->toDateTimeString(),
+            'updated_at' => $this->updated_at->toDateTimeString(),
         ];
     }
 
     /**
-     * Format the price for display
+     * Formatear precio con símbolo de moneda
      */
-    private function formatPrice(): string
+    protected function formatPrice(): string
     {
-        $amount = $this->price_cents / 100;
-        return number_format($amount, 2, ',', '.') . ' ' . $this->currency_code;
+        $symbol = match ($this->currency_code) {
+            'ARS' => '$',
+            'USD' => 'US$',
+            'EUR' => '€',
+            default => $this->currency_code . ' ',
+        };
+
+        return $symbol . number_format($this->price, 2);
+    }
+
+    /**
+     * Obtener etiqueta legible del intervalo
+     */
+    protected function getIntervalLabel(): string
+    {
+        return match ($this->interval) {
+            'monthly' => 'Mensual',
+            'annual' => 'Anual',
+            default => ucfirst($this->interval),
+        };
+    }
+
+    /**
+     * Obtener cantidad de intervalos (para cálculos)
+     */
+    protected function getIntervalCount(): int
+    {
+        return match ($this->interval) {
+            'monthly' => 1,
+            'annual' => 12,
+            default => 1,
+        };
     }
 }

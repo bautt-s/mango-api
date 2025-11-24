@@ -22,10 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/v1/reset-password',
         ]);
 
+        // Middleware aliases
         $middleware->alias([
             'ensureFrontendRequestsAreStateful' => \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            'feature.access' => \App\Http\Middleware\CheckFeatureAccess::class, // ← AGREGADO
         ]);
 
+        // API middleware group
         $middleware->group('api', [
             'ensureFrontendRequestsAreStateful',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,

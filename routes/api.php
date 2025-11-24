@@ -14,15 +14,19 @@ use App\Http\Controllers\Configurations\TransactionController;
 use App\Http\Controllers\Features\FeatureController;
 use App\Http\Controllers\Personal\MilestoneController;
 use App\Http\Controllers\Personal\UserController;
+use App\Http\Controllers\Subscriptions\SubscriptionController;
 
 Route::prefix('v1')->group(function () {
+    // Public routes
     Route::post('/register', [MainAuthController::class, 'register']);
     Route::post('/login', [MainAuthController::class, 'login']);
     Route::post('/send-code', [ForgotPasswordController::class, 'sendCode']);
     Route::post('/validate-code', [ForgotPasswordController::class, 'validateCode']);
     Route::post('/reset-password', [ForgotPasswordController::class, 'changePassword']);
 
+    // Protected routes (require authentication)
     Route::middleware('auth:sanctum')->group(function () {
+        // Auth & User Management
         Route::get('/user', [MainAuthController::class, 'getLoggedUser']);
         Route::post('/logout', [MainAuthController::class, 'logout']);
         Route::post('/email-verification-code', [EmailVerificationController::class, 'sendCode']);
@@ -36,6 +40,9 @@ Route::prefix('v1')->group(function () {
             Route::delete('/account', [UserController::class, 'deleteAccount']);
         });
 
+        // FREE FEATURES - No additional middleware required
+
+        // Accounts
         Route::prefix('accounts')->group(function () {
             Route::get('/', [AccountController::class, 'index']);
             Route::post('/', [AccountController::class, 'store']);
@@ -46,6 +53,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/reorder', [AccountController::class, 'reorder']);
         });
 
+        // Categories
         Route::prefix('categories')->group(function () {
             Route::get('/', [CategoryController::class, 'index']);
             Route::get('/roots', [CategoryController::class, 'roots']);
@@ -55,6 +63,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/{category}/stats', [CategoryController::class, 'stats']);
         });
 
+        // Payment Methods
         Route::prefix('payment-methods')->group(function () {
             Route::get('/', [PaymentMethodController::class, 'index']);
             Route::post('/', [PaymentMethodController::class, 'store']);
@@ -64,6 +73,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('/{paymentMethod}/billing-cycle', [PaymentMethodController::class, 'setBillingCycle']);
         });
 
+        // Transactions
         Route::prefix('transactions')->group(function () {
             Route::get('/', [TransactionController::class, 'index']);
             Route::post('/expense', [TransactionController::class, 'storeExpense']);
@@ -75,7 +85,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/recurring-groups', [TransactionController::class, 'recurringGroups']);
         });
 
-        Route::prefix('budgets')->group(function () {
+        // PREMIUM FEATURES - Protected by feature gating middleware
+
+        // Budgets (Premium Feature)
+        Route::middleware('feature.access:budgeting_system')->prefix('budgets')->group(function () {
             Route::get('/', [BudgetController::class, 'index']);
             Route::post('/', [BudgetController::class, 'store']);
             Route::get('/current', [BudgetController::class, 'current']);
@@ -85,7 +98,8 @@ Route::prefix('v1')->group(function () {
             Route::patch('/{budget}/rollover', [BudgetController::class, 'toggleRollover']);
         });
 
-        Route::prefix('alerts')->group(function () {
+        // Alerts (Premium Feature)
+        Route::middleware('feature.access:alerts_system')->prefix('alerts')->group(function () {
             Route::get('/types', [AlertController::class, 'getAlertTypes']);
             Route::get('/preferences', [AlertController::class, 'getPreferences']);
             Route::put('/preferences', [AlertController::class, 'updatePreferences']);
@@ -103,6 +117,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/{alert}/test', [AlertController::class, 'test']);
         });
 
+        // Feature Information (Free - users can see available features)
         Route::prefix('features')->group(function () {
             Route::get('/', [FeatureController::class, 'index']);
             Route::get('/quotas', [FeatureController::class, 'quotas']);
@@ -110,6 +125,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/{slug}/check', [FeatureController::class, 'check']);
         });
 
+        // Milestones (Free - gamification for all users)
         Route::prefix('milestones')->group(function () {
             Route::get('/', [MilestoneController::class, 'index']);
             Route::get('/progress', [MilestoneController::class, 'progress']);
@@ -117,6 +133,19 @@ Route::prefix('v1')->group(function () {
             Route::get('/stats', [MilestoneController::class, 'stats']);
             Route::post('/check', [MilestoneController::class, 'check']);
             Route::get('/{milestone}', [MilestoneController::class, 'show']);
+        });
+
+        // Subscriptions
+        Route::prefix('subscription')->group(function () {
+            Route::get('/', [SubscriptionController::class, 'show']);
+            Route::post('/', [SubscriptionController::class, 'store']);
+            Route::delete('/', [SubscriptionController::class, 'destroy']);
+            //Route::post('/trial', [SubscriptionController::class, 'startTrial']);
+            Route::post('/resume', [SubscriptionController::class, 'resume']);
+            Route::put('/plan', [SubscriptionController::class, 'changePlan']);
+            Route::get('/plans', [SubscriptionController::class, 'plans']);
+            Route::get('/payments', [SubscriptionController::class, 'payments']);
+            Route::get('/status', [SubscriptionController::class, 'status']);
         });
     });
 });

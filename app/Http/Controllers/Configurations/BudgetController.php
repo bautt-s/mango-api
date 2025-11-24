@@ -19,9 +19,6 @@ class BudgetController extends Controller
     public function __construct(BudgetService $budgetService)
     {
         $this->budgetService = $budgetService;
-        
-        // TODO: Descomentar cuando el middleware de feature gating esté implementado
-        // $this->middleware('premium.feature:budgeting_system');
     }
 
     /**

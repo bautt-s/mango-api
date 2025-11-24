@@ -20,8 +20,6 @@ class AlertController extends Controller
     public function __construct(
         private AlertService $alertService
     ) {
-        // TODO: Uncomment when feature gating is ready
-        // $this->middleware('premium.feature:alerts_system');
     }
 
     /**
