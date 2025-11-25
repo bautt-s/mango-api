@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Configurations\AccountController;
 use App\Http\Controllers\Configurations\BudgetController;
 use App\Http\Controllers\Configurations\CategoryController;
+use App\Http\Controllers\Configurations\DailySummaryController;
 use App\Http\Controllers\Configurations\PaymentMethodController;
 use App\Http\Controllers\Configurations\TransactionController;
 use App\Http\Controllers\Features\FeatureController;
@@ -115,6 +116,17 @@ Route::prefix('v1')->group(function () {
             Route::post('/{alert}/snooze', [AlertController::class, 'snooze']);
             Route::post('/{alert}/unsnooze', [AlertController::class, 'unsnooze']);
             Route::post('/{alert}/test', [AlertController::class, 'test']);
+        });
+
+        // Daily Summaries (Free - all authenticated users can view their summaries)
+        Route::prefix('summaries')->group(function () {
+            Route::get('/', [DailySummaryController::class, 'index']);
+            Route::post('/generate', [DailySummaryController::class, 'generate']);
+            Route::get('/stats', [DailySummaryController::class, 'stats']);
+            Route::get('/preview', [DailySummaryController::class, 'preview']);
+            Route::get('/week', [DailySummaryController::class, 'week']);
+            Route::get('/month', [DailySummaryController::class, 'month']);
+            Route::get('/{date}', [DailySummaryController::class, 'show']);
         });
 
         // Feature Information (Free - users can see available features)
